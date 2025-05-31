@@ -22,13 +22,30 @@ class _FavoritePageState extends State<FavoritePage> {
   }
 
   void loadFavorites() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? favData = prefs.getString('favorites');
-    if (favData != null) {
-      final List favIds = jsonDecode(favData);
-      final allPhones = await ApiService.getPhones();
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? favData = prefs.getString('favorites');
+      if (favData != null) {
+        // Parse JSON dan pastikan sebagai List
+        final dynamic decodedData = jsonDecode(favData);
+        List<int> favIds = [];
+        
+        if (decodedData is List) {
+          favIds = decodedData.cast<int>();
+        } else if (decodedData is Map) {
+          // Jika data adalah Map, ambil values atau keys sesuai struktur
+          favIds = [];
+        }
+        
+        final allPhones = await ApiService.getPhones();
+        setState(() {
+          favorites = allPhones.where((p) => favIds.contains(p.id)).toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading favorites: $e');
       setState(() {
-        favorites = allPhones.where((p) => favIds.contains(p.id)).toList();
+        favorites = [];
       });
     }
   }
@@ -37,24 +54,55 @@ class _FavoritePageState extends State<FavoritePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Favorite Phones')),
-      body: ListView.builder(
-        itemCount: favorites.length,
-        itemBuilder: (context, index) {
-          final phone = favorites[index];
-          return PhoneCard(
-            phone: phone,
-            isFavorite: true,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DetailPage(phoneId: phone.id),
-              ),
+      body: favorites.isEmpty 
+        ? Center(
+            child: Text(
+              'Belum ada phone favorit',
+              style: TextStyle(fontSize: 16),
             ),
-            onFavorite: () {},
-            onDelete: null,
-          );
-        },
-      ),
+          )
+        : ListView.builder(
+            itemCount: favorites.length,
+            itemBuilder: (context, index) {
+              final phone = favorites[index];
+              return PhoneCard(
+                phone: phone,
+                isFavorite: true,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DetailPage(phone: phone),
+                  ),
+                ).then((_) => loadFavorites()), // Refresh setelah kembali
+                onFavorite: () {
+                  // Hapus dari favorit
+                  removeFavorite(phone.id);
+                },
+                onDelete: null,
+              );
+            },
+          ),
     );
+  }
+
+  void removeFavorite(int phoneId) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? favData = prefs.getString('favorites');
+      if (favData != null) {
+        final dynamic decodedData = jsonDecode(favData);
+        List<int> favIds = [];
+        
+        if (decodedData is List) {
+          favIds = decodedData.cast<int>();
+        }
+        
+        favIds.remove(phoneId);
+        await prefs.setString('favorites', jsonEncode(favIds));
+        loadFavorites(); // Refresh tampilan
+      }
+    } catch (e) {
+      print('Error removing favorite: $e');
+    }
   }
 }

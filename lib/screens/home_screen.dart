@@ -27,22 +27,40 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       phones = ApiService.getPhones();
     });
+    loadFavorites(); // Juga refresh favorites
   }
 
   void loadFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? favString = prefs.getString('favorites');
-    if (favString != null) {
-      final List<dynamic> favList = jsonDecode(favString);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? favString = prefs.getString('favorites');
+      if (favString != null) {
+        final dynamic decodedData = jsonDecode(favString);
+        List<int> favIds = [];
+        
+        if (decodedData is List) {
+          favIds = decodedData.cast<int>();
+        }
+        
+        setState(() {
+          favoriteIds = favIds;
+        });
+      }
+    } catch (e) {
+      print('Error loading favorites: $e');
       setState(() {
-        favoriteIds = favList.cast<int>();
+        favoriteIds = [];
       });
     }
   }
 
   void saveFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('favorites', jsonEncode(favoriteIds));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('favorites', jsonEncode(favoriteIds));
+    } catch (e) {
+      print('Error saving favorites: $e');
+    }
   }
 
   void toggleFavorite(int id) {
@@ -52,8 +70,8 @@ class _HomePageState extends State<HomePage> {
       } else {
         favoriteIds.add(id);
       }
-      saveFavorites();
     });
+    saveFavorites();
   }
 
   @override
@@ -64,7 +82,8 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             icon: Icon(Icons.favorite),
-            onPressed: () => Navigator.pushNamed(context, '/favorites'),
+            onPressed: () => Navigator.pushNamed(context, '/favorites')
+                .then((_) => refreshData()), // Refresh setelah kembali dari favorites
           )
         ],
       ),
@@ -83,12 +102,21 @@ class _HomePageState extends State<HomePage> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DetailPage(phoneId: phone.id),
+                      builder: (_) => DetailPage(phone: phone),
                     ),
-                  ),
+                  ).then((_) => refreshData()), // Refresh setelah kembali dari detail
                   onDelete: () async {
-                    await ApiService.deletePhone(phone.id);
-                    refreshData();
+                    try {
+                      await ApiService.deletePhone(phone.id);
+                      refreshData();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Phone berhasil dihapus')),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Gagal menghapus phone')),
+                      );
+                    }
                   },
                   onFavorite: () => toggleFavorite(phone.id),
                 );

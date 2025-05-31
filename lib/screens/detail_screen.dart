@@ -6,22 +6,20 @@ import '../services/api_service.dart';
 import 'dart:convert';
 
 class DetailPage extends StatefulWidget {
-  final int phoneId;
+  final Phone phone;
 
-  const DetailPage({Key? key, required this.phoneId}) : super(key: key);
+  const DetailPage({Key? key, required this.phone}) : super(key: key);
 
   @override
   State<DetailPage> createState() => _DetailPageState();
 }
 
 class _DetailPageState extends State<DetailPage> {
-  late Future<Phone> phone;
   bool isFavorite = false;
 
   @override
   void initState() {
     super.initState();
-    phone = ApiService.getPhoneById(widget.phoneId);
     checkFavorite();
   }
 
@@ -31,7 +29,7 @@ class _DetailPageState extends State<DetailPage> {
     if (favString != null) {
       final List<dynamic> favList = jsonDecode(favString);
       setState(() {
-        isFavorite = favList.contains(widget.phoneId);
+        isFavorite = favList.contains(widget.phone.id);
       });
     }
   }
@@ -44,11 +42,11 @@ class _DetailPageState extends State<DetailPage> {
       favList = List<int>.from(jsonDecode(favString));
     }
     setState(() {
-      if (favList.contains(widget.phoneId)) {
-        favList.remove(widget.phoneId);
+      if (favList.contains(widget.phone.id)) {
+        favList.remove(widget.phone.id);
         isFavorite = false;
       } else {
-        favList.add(widget.phoneId);
+        favList.add(widget.phone.id);
         isFavorite = true;
       }
     });
@@ -57,64 +55,54 @@ class _DetailPageState extends State<DetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Phone>(
-      future: phone,
-      builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          final phone = snapshot.data!;
-          return Scaffold(
-            appBar: AppBar(
-              title: Text(phone.name),
-              actions: [
-                IconButton(
-                  icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
-                  onPressed: toggleFavorite,
-                )
-              ],
-            ),
-            body: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Image.network(phone.image),
-                  SizedBox(height: 10),
-                  Text('Nama: ${phone.name}', style: TextStyle(fontSize: 20)),
-                  Text('Harga: Rp ${phone.price}'),
-                ],
+    final phone = widget.phone;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(phone.name),
+        actions: [
+          IconButton(
+            icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+            onPressed: toggleFavorite,
+          )
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Image.network(phone.image),
+            const SizedBox(height: 10),
+            Text('Nama: ${phone.name}', style: TextStyle(fontSize: 20)),
+            Text('Harga: Rp ${phone.price}'),
+          ],
+        ),
+      ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'edit',
+            child: Icon(Icons.edit),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditPage(phone: phone),
               ),
             ),
-            floatingActionButton: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                FloatingActionButton(
-                  heroTag: 'edit',
-                  child: Icon(Icons.edit),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditPage(phone: phone),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                FloatingActionButton(
-                  heroTag: 'delete',
-                  child: Icon(Icons.delete),
-                  onPressed: () async {
-                    await ApiService.deletePhone(phone.id);
-                    Navigator.pop(context);
-                  },
-                )
-              ],
-            ),
-          );
-        } else if (snapshot.hasError) {
-          return Scaffold(body: Center(child: Text('Error loading data')));
-        } else {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-      },
+          ),
+          const SizedBox(width: 16),
+          FloatingActionButton(
+            heroTag: 'delete',
+            child: Icon(Icons.delete),
+            onPressed: () async {
+              await ApiService.deletePhone(phone.id);
+              Navigator.pop(context);
+            },
+          )
+        ],
+      ),
     );
   }
 }
